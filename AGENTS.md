@@ -32,7 +32,7 @@
 
 ## Commit & Pull Request Guidelines
 
-- Create commits with `committer "<msg>" <file...>`; avoid manual staging.
+- Stage only the files you changed (`git add <file...>`, never `git add -A`) and commit with `git commit`.
 - Follow Conventional Commits + action-oriented subjects (e.g. `feat(cli): add --verbose to send`).
 - Group related changes; avoid bundling unrelated refactors.
 - PRs should summarize scope, note testing performed, and mention any user-facing changes or new flags.

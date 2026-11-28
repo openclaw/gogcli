@@ -166,10 +166,12 @@ least-privilege read against the intended service.
 
 Google API rate-limit retries cover HTTP 429 and HTTP 403 responses whose
 reason is `rateLimitExceeded` or `userRateLimitExceeded`. Concurrent requests
-using the same HTTP transport share an exponential backoff with jitter. A pause
-holds new attempts and retries, then spreads their release over as much as
-250 milliseconds. gog honors `Retry-After` in seconds or as an HTTP date and
-caps each backoff delay at 60 seconds. A request returns the rate-limit error
+using the same HTTP transport share one pause. Without `Retry-After`, the pause
+doubles from 1 second to at most 8 seconds, with jitter, and responses from
+requests already in flight when it started do not lengthen it. A pause holds new
+attempts and retries, then spreads their release over as much as 250
+milliseconds. gog honors `Retry-After` in seconds or as an HTTP date, up to 60
+seconds per wait. A request returns the rate-limit error
 if it reaches 12 rate-limit responses or runs out of its 120-second retry
 budget, measured from its first rate-limit response. Cancelling the command
 cancels a pending wait. Upload bodies are closed even when a request is

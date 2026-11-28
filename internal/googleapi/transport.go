@@ -396,14 +396,14 @@ func (t *RetryTransport) calculateBackoff(exponent int, resp *http.Response, now
 		}
 	}
 
-	// Exponential backoff with jitter: 1s, 2s, 4s...
+	// Exponential backoff with jitter: 1s, 2s, 4s, then MaxRateLimitBackoff.
 	if t.BaseDelay <= 0 {
 		return 0
 	}
 
-	exponent = min(exponent, 5)
-	if t.BaseDelay >= maxRetryAfter>>exponent {
-		return maxRetryAfter
+	exponent = min(exponent, 3)
+	if t.BaseDelay >= MaxRateLimitBackoff>>exponent {
+		return MaxRateLimitBackoff
 	}
 
 	baseDelay := t.BaseDelay << exponent
@@ -418,7 +418,7 @@ func (t *RetryTransport) calculateBackoff(exponent int, resp *http.Response, now
 		return baseDelay
 	}
 
-	return capRetryAfter(baseDelay + jitter)
+	return min(baseDelay+jitter, MaxRateLimitBackoff)
 }
 
 func randomDurationBelow(upperBound time.Duration) (time.Duration, error) {

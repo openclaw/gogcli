@@ -10,6 +10,10 @@ const (
 	MaxRateLimitWait = 120 * time.Second
 	// RateLimitBaseDelay is the initial delay for rate limit exponential backoff.
 	RateLimitBaseDelay = 1 * time.Second
+	// MaxRateLimitBackoff caps the shared exponential pause when Google sends no
+	// Retry-After. Gmail's per-user quota refills continuously; live runs with
+	// 16-48s pauses were slower than short independent retries, not more reliable.
+	MaxRateLimitBackoff = 8 * time.Second
 	// Max5xxRetries is the maximum retries for server errors.
 	Max5xxRetries = 1
 	// ServerErrorRetryDelay is the delay before retrying on 5xx errors.
