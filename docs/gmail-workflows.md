@@ -35,12 +35,17 @@ gog gmail messages search 'list:example.com' --all --max 500 --ids-only --json -
   jq -r '.[].id' | xargs -n 1000 gog gmail batch modify --add-label Newsletters
 ```
 
+For bulk label changes, this uses far fewer Gmail quota units than calling
+`gmail thread modify` for each thread. The batch command labels the matching
+messages. Thread modification applies to every message in the thread.
+
 `--ids-only` rejects `--include-body`, `--full`, `--include-attachments`,
 `--include-recipients`, `--headers`, `--sanitize-content`, and, for `gmail search`, `--oldest`.
 
-Thread searches fail if any thread detail cannot be fetched, without emitting a
-partial result list, and stop the detail requests still pending. Retry the
-search after resolving the reported API error.
+Concurrent thread detail requests share a pause when Gmail reports a rate
+limit. If a thread detail still cannot be fetched, the search stops pending
+requests and fails without emitting partial results. Retry the search after
+resolving the reported API error.
 
 Quoted operators such as `"is:unread"` are literal phrases and are passed to Gmail without adding a label filter. `gmail thread get` includes nonempty Cc and Bcc headers in its text output.
 

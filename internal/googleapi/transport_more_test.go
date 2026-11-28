@@ -126,7 +126,7 @@ func TestRetryTransportRoundTripRetries429(t *testing.T) {
 
 	rt := &RetryTransport{
 		Base:          base,
-		MaxRetries429: 1,
+		MaxRetries429: 2,
 		MaxRetries5xx: 0,
 		BaseDelay:     0,
 	}
@@ -151,7 +151,7 @@ func TestRetryTransportRoundTripRetries429(t *testing.T) {
 	}
 }
 
-func TestRetryTransportRoundTripStopsAfter429Retries(t *testing.T) {
+func TestRetryTransportRoundTripStopsAtFirst429WithCeilingOne(t *testing.T) {
 	calls := 0
 	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		calls++
@@ -180,8 +180,8 @@ func TestRetryTransportRoundTripStopsAfter429Retries(t *testing.T) {
 		t.Fatalf("expected 429, got %d", resp.StatusCode)
 	}
 
-	if calls != 2 {
-		t.Fatalf("expected 2 calls, got %d", calls)
+	if calls != 1 {
+		t.Fatalf("expected 1 call, got %d", calls)
 	}
 }
 
@@ -241,8 +241,10 @@ func TestRetryTransportRoundTripWithoutRetries(t *testing.T) {
 				Base:          base,
 				MaxRetries429: 1,
 				MaxRetries5xx: 1,
-				BaseDelay:     0,
+				BaseDelay:     time.Second,
 			}
+			delays := recordBackoff(rt)
+			rt.pauseUntil = rt.now().Add(time.Minute)
 
 			ctx := WithoutRetries(context.Background())
 
@@ -263,6 +265,10 @@ func TestRetryTransportRoundTripWithoutRetries(t *testing.T) {
 
 			if calls != 1 {
 				t.Fatalf("calls = %d, want exactly 1", calls)
+			}
+
+			if len(*delays) != 0 {
+				t.Fatalf("waits = %v, want no wait at the active gate", *delays)
 			}
 		})
 	}
@@ -584,37 +590,39 @@ func TestRetryTransportCalculateBackoffRetryAfter(t *testing.T) {
 	rt := &RetryTransport{BaseDelay: time.Second}
 	resp := &http.Response{Header: http.Header{"Retry-After": []string{"5"}}}
 
-	if got := rt.calculateBackoff(0, resp); got != 5*time.Second {
+	now := time.Unix(0, 0)
+	if got := rt.calculateBackoff(0, resp, now); got != 5*time.Second {
 		t.Fatalf("expected 5s, got %v", got)
 	}
 
 	resp = &http.Response{Header: http.Header{"Retry-After": []string{"-1"}}}
-	if got := rt.calculateBackoff(0, resp); got != 0 {
+	if got := rt.calculateBackoff(0, resp, now); got != 0 {
 		t.Fatalf("expected 0, got %v", got)
 	}
 
-	date := time.Now().Add(2 * time.Second).UTC().Format(http.TimeFormat)
+	date := now.Add(2 * time.Second).UTC().Format(http.TimeFormat)
 	resp = &http.Response{Header: http.Header{"Retry-After": []string{date}}}
 
-	if got := rt.calculateBackoff(0, resp); got <= 0 {
+	if got := rt.calculateBackoff(0, resp, now); got != 2*time.Second {
 		t.Fatalf("expected positive delay, got %v", got)
 	}
 }
 
 func TestRetryTransportCalculateBackoffRetryAfterCaps(t *testing.T) {
 	rt := &RetryTransport{BaseDelay: time.Second}
+	now := time.Unix(0, 0)
 
 	for _, header := range []string{"60", "3600", "2147483648", "9223372036854775807", "9999999999999999999999999999999999999999"} {
 		resp := &http.Response{Header: http.Header{"Retry-After": []string{header}}}
-		if got := rt.calculateBackoff(0, resp); got != 60*time.Second {
+		if got := rt.calculateBackoff(0, resp, now); got != 60*time.Second {
 			t.Fatalf("Retry-After %s = %s, want 60s", header, got)
 		}
 	}
 
-	date := time.Now().Add(24 * time.Hour).UTC().Format(http.TimeFormat)
+	date := now.Add(24 * time.Hour).UTC().Format(http.TimeFormat)
 	resp := &http.Response{Header: http.Header{"Retry-After": []string{date}}}
 
-	if got := rt.calculateBackoff(0, resp); got != 60*time.Second {
+	if got := rt.calculateBackoff(0, resp, now); got != 60*time.Second {
 		t.Fatalf("Retry-After HTTP-date +24h = %s, want 60s", got)
 	}
 }
@@ -623,7 +631,7 @@ func TestRetryTransportCalculateBackoffDefault(t *testing.T) {
 	rt := &RetryTransport{BaseDelay: time.Nanosecond}
 	resp := &http.Response{Header: http.Header{}}
 
-	if got := rt.calculateBackoff(0, resp); got != time.Nanosecond {
+	if got := rt.calculateBackoff(0, resp, time.Unix(0, 0)); got != time.Nanosecond {
 		t.Fatalf("expected base delay, got %v", got)
 	}
 }
@@ -759,7 +767,7 @@ func TestRetryTransportRoundTripResetsBody(t *testing.T) {
 
 	rt := &RetryTransport{
 		Base:          base,
-		MaxRetries429: 1,
+		MaxRetries429: 2,
 		MaxRetries5xx: 0,
 		BaseDelay:     0,
 	}

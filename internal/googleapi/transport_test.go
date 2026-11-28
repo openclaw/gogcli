@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -74,7 +75,7 @@ func TestRetryTransport_RateLimit_Retry(t *testing.T) {
 	}
 
 	rt := NewRetryTransport(mock)
-	rt.BaseDelay = 10 * time.Millisecond // Speed up test
+	recordBackoff(rt)
 
 	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
 	var resp *http.Response
@@ -98,41 +99,29 @@ func TestRetryTransport_RateLimit_Retry(t *testing.T) {
 	}
 }
 
-func TestRetryTransport_RateLimit_MaxRetries(t *testing.T) {
-	// All responses are 429
-	mock := &mockTransport{
-		responses: []*http.Response{
-			{StatusCode: 429, Body: io.NopCloser(strings.NewReader("rate limited"))},
-			{StatusCode: 429, Body: io.NopCloser(strings.NewReader("rate limited"))},
-			{StatusCode: 429, Body: io.NopCloser(strings.NewReader("rate limited"))},
-			{StatusCode: 429, Body: io.NopCloser(strings.NewReader("rate limited"))},
-		},
-	}
+func TestRetryTransport_RateLimit_ResponseCeiling(t *testing.T) {
+	const ceiling = 12
 
+	mock := &mockTransport{responses: make([]*http.Response, ceiling)}
+	for i := range mock.responses {
+		mock.responses[i] = &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Body:       io.NopCloser(strings.NewReader("rate limited")),
+		}
+	}
 	rt := NewRetryTransport(mock)
-	rt.BaseDelay = 1 * time.Millisecond
-	rt.MaxRetries429 = 2
+	rt.BaseDelay = 0
+	delays := recordBackoff(rt)
 
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
-	var resp *http.Response
+	resp := roundTrip(t, rt)
+	defer resp.Body.Close()
 
-	if r, err := rt.RoundTrip(req); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else {
-		resp = r
+	if mock.calls != ceiling || resp != mock.responses[ceiling-1] || len(*delays) != 0 {
+		t.Fatalf("calls = %d, status = %d, waits = %v; want the twelfth response, with no waits", mock.calls, resp.StatusCode, *delays)
 	}
 
-	if resp.Body != nil {
-		defer resp.Body.Close()
-	}
-
-	if resp.StatusCode != 429 {
-		t.Errorf("expected 429 after max retries, got %d", resp.StatusCode)
-	}
-	// 1 initial + 2 retries = 3 total
-
-	if mock.calls != 3 {
-		t.Errorf("expected 3 calls, got %d", mock.calls)
+	if body, err := io.ReadAll(resp.Body); err != nil || string(body) != "rate limited" {
+		t.Fatalf("body = %q, err = %v; want the original rate-limit body", body, err)
 	}
 }
 
@@ -200,40 +189,54 @@ func TestRetryTransport_ClientError_NoRetry(t *testing.T) {
 }
 
 func TestRetryTransport_ContextCanceled(t *testing.T) {
-	mock := &mockTransport{
-		responses: []*http.Response{
-			{StatusCode: 429, Body: io.NopCloser(strings.NewReader("rate limited"))},
-		},
-	}
+	synctest.Test(t, func(t *testing.T) {
+		mock := &mockTransport{responses: []*http.Response{{
+			StatusCode: http.StatusTooManyRequests,
+			Body:       io.NopCloser(strings.NewReader("rate limited")),
+		}}}
+		rt := NewRetryTransport(mock)
+		rt.nowFn = time.Now
+		rt.sleepFn = func(ctx context.Context, _ time.Duration) error {
+			<-ctx.Done()
+			return ctx.Err()
+		}
 
-	rt := NewRetryTransport(mock)
-	rt.BaseDelay = 1 * time.Second // Long delay
+		// Seed the shared gate without retrying, then cancel a new request while it waits.
+		seed, _ := http.NewRequestWithContext(WithoutRetries(t.Context()), http.MethodGet, "https://example.com", nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	req, _ := http.NewRequestWithContext(ctx, "GET", "https://example.com", nil)
+		resp, err := rt.RoundTrip(seed)
+		if err != nil || resp.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("seeding the gate: response = %v, error = %v", resp, err)
+		}
+		_ = resp.Body.Close()
 
-	// Cancel context during the backoff
-	go func() {
-		time.Sleep(10 * time.Millisecond)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		body := &closeTracker{}
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://example.com", body)
+		result := make(chan error, 1)
+
+		go func() {
+			resp, err := rt.RoundTrip(req)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+
+			result <- err
+		}()
+
+		synctest.Wait()
+
+		if mock.calls != 1 {
+			t.Fatalf("base calls while paused = %d, want 1", mock.calls)
+		}
+
 		cancel()
-	}()
 
-	var resp *http.Response
-	var err error
-
-	if r, errCall := rt.RoundTrip(req); errCall != nil {
-		err = errCall
-	} else {
-		resp = r
-	}
-
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	}
-
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("expected context.Canceled, got %v", err)
-	}
+		if err := <-result; !errors.Is(err, context.Canceled) || !body.closed {
+			t.Fatalf("error = %v, request body closed = %t; want cancellation with the body closed", err, body.closed)
+		}
+	})
 }
 
 func TestRetryTransport_CircuitBreakerOpen(t *testing.T) {
@@ -309,41 +312,30 @@ func TestRetryTransport_CircuitBreakerReset(t *testing.T) {
 }
 
 func TestRetryTransport_RetryAfterHeader(t *testing.T) {
-	mock := &mockTransport{
-		responses: []*http.Response{
-			{
-				StatusCode: 429,
-				Header:     http.Header{"Retry-After": []string{"1"}},
+	for _, tt := range []struct {
+		header string
+		wait   time.Duration
+	}{
+		{header: "1", wait: time.Second},
+		{header: "600", wait: time.Minute},
+	} {
+		t.Run(tt.header, func(t *testing.T) {
+			limited := &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     http.Header{"Retry-After": {tt.header}},
 				Body:       io.NopCloser(strings.NewReader("rate limited")),
-			},
-			{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok"))},
-		},
-	}
+			}
+			rt := NewRetryTransport(&mockTransport{responses: []*http.Response{limited}})
+			rt.BaseDelay = 10 * time.Second
+			delays := recordBackoff(rt)
 
-	rt := NewRetryTransport(mock)
-	rt.BaseDelay = 1 * time.Hour // Would be very long without Retry-After
+			resp := roundTrip(t, rt)
+			defer resp.Body.Close()
 
-	start := time.Now()
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
-	var resp *http.Response
-
-	if r, err := rt.RoundTrip(req); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else {
-		resp = r
-	}
-	elapsed := time.Since(start)
-
-	if resp.Body != nil {
-		defer resp.Body.Close()
-	}
-
-	if resp.StatusCode != 200 {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
-	// Should have waited ~1 second based on Retry-After header
-	if elapsed < 900*time.Millisecond || elapsed > 2*time.Second {
-		t.Errorf("expected ~1s delay from Retry-After, got %v", elapsed)
+			if resp.StatusCode != http.StatusOK || len(*delays) != 2 || (*delays)[0] != tt.wait {
+				t.Fatalf("status = %d, waits = %v; want success after %v and a release spread", resp.StatusCode, *delays, tt.wait)
+			}
+		})
 	}
 }
 
@@ -361,10 +353,10 @@ func TestRetryTransport_CalculateBackoff_NoPanic(t *testing.T) {
 	}()
 
 	rt.BaseDelay = 0
-	_ = rt.calculateBackoff(0, resp)
+	_ = rt.calculateBackoff(0, resp, time.Now())
 
 	rt.BaseDelay = 1 * time.Nanosecond
-	_ = rt.calculateBackoff(0, resp)
+	_ = rt.calculateBackoff(0, resp, time.Now())
 }
 
 func TestRetryTransport_WithRequestBody(t *testing.T) {
@@ -376,7 +368,7 @@ func TestRetryTransport_WithRequestBody(t *testing.T) {
 	}
 
 	rt := NewRetryTransport(mock)
-	rt.BaseDelay = 1 * time.Millisecond
+	recordBackoff(rt)
 
 	body := strings.NewReader("request body")
 	req, _ := http.NewRequestWithContext(context.Background(), "POST", "https://example.com", body)
@@ -457,9 +449,13 @@ func rateLimit403Body(reason string) io.ReadCloser {
 // recordBackoff replaces the transport's backoff wait and returns the delays
 // it was asked to wait, so retry timing is asserted without real sleeps.
 func recordBackoff(rt *RetryTransport) *[]time.Duration {
+	now := time.Unix(0, 0)
 	delays := &[]time.Duration{}
+	rt.nowFn = func() time.Time { return now }
 	rt.sleepFn = func(_ context.Context, d time.Duration) error {
 		*delays = append(*delays, d)
+		now = now.Add(d)
+
 		return nil
 	}
 
@@ -505,8 +501,8 @@ func TestRetryTransport_RateLimit403_Retry(t *testing.T) {
 			}
 
 			// Exponential backoff with up to 50% jitter: 1s..1.5s for the first retry.
-			if len(*delays) != 1 || (*delays)[0] < time.Second || (*delays)[0] >= 1500*time.Millisecond {
-				t.Errorf("backoff delays = %v, want one delay in [1s, 1.5s)", *delays)
+			if len(*delays) != 2 || (*delays)[0] < time.Second || (*delays)[0] >= 1500*time.Millisecond {
+				t.Errorf("backoff delays = %v, want [1s, 1.5s) followed by a release spread", *delays)
 			}
 		})
 	}
@@ -535,12 +531,12 @@ func TestRetryTransport_RateLimit403_RetryAfterHeader(t *testing.T) {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 
-	if len(*delays) != 1 || (*delays)[0] != 7*time.Second {
-		t.Errorf("backoff delays = %v, want [7s] from Retry-After", *delays)
+	if len(*delays) != 2 || (*delays)[0] != 7*time.Second {
+		t.Errorf("backoff delays = %v, want 7s from Retry-After followed by a release spread", *delays)
 	}
 }
 
-func TestRetryTransport_RateLimit403_MaxRetriesKeepsBody(t *testing.T) {
+func TestRetryTransport_RateLimit403_ResponseCeilingKeepsBody(t *testing.T) {
 	mock := &mockTransport{
 		responses: []*http.Response{
 			{StatusCode: http.StatusForbidden, Body: rateLimit403Body("rateLimitExceeded")},
@@ -560,8 +556,8 @@ func TestRetryTransport_RateLimit403_MaxRetriesKeepsBody(t *testing.T) {
 		t.Errorf("expected 403 after max retries, got %d", resp.StatusCode)
 	}
 
-	if mock.calls != 3 || len(*delays) != 2 {
-		t.Errorf("calls = %d, backoff delays = %v; want 3 calls and 2 waits", mock.calls, *delays)
+	if mock.calls != 2 || len(*delays) != 2 {
+		t.Errorf("calls = %d, backoff delays = %v; want 2 calls and one gate wait plus spread", mock.calls, *delays)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -590,8 +586,8 @@ func TestRetryTransport_RateLimit403And429ShareOneBudget(t *testing.T) {
 		resp := roundTrip(t, rt)
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 200 || mock.calls != 3 || len(*delays) != 2 {
-			t.Errorf("status = %d, calls = %d, delays = %v; want 200 after 3 calls and 2 waits", resp.StatusCode, mock.calls, *delays)
+		if resp.StatusCode != 200 || mock.calls != 3 || len(*delays) != 4 {
+			t.Errorf("status = %d, calls = %d, delays = %v; want 200 after 3 calls and two gate waits plus spreads", resp.StatusCode, mock.calls, *delays)
 		}
 	})
 
@@ -606,14 +602,14 @@ func TestRetryTransport_RateLimit403And429ShareOneBudget(t *testing.T) {
 		}
 
 		rt := NewRetryTransport(mock)
-		rt.MaxRetries429 = 2
+		rt.MaxRetries429 = 3
 		delays := recordBackoff(rt)
 
 		resp := roundTrip(t, rt)
 		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusForbidden || mock.calls != 3 || len(*delays) != 2 {
-			t.Errorf("status = %d, calls = %d, delays = %v; want the third response (403) after 2 waits", resp.StatusCode, mock.calls, *delays)
+		if resp.StatusCode != http.StatusForbidden || mock.calls != 3 || len(*delays) != 4 {
+			t.Errorf("status = %d, calls = %d, delays = %v; want the third response (403) after two gate waits plus spreads", resp.StatusCode, mock.calls, *delays)
 		}
 	})
 }
@@ -703,8 +699,9 @@ func TestRetryTransport_Forbidden_KeepsBodyReadError(t *testing.T) {
 }
 
 func TestRetryTransport_RateLimit403_DefaultBudgetOutlastsPerMinuteQuota(t *testing.T) {
-	// mockTransport answers 200 once its scripted responses run out.
-	mock := &mockTransport{responses: make([]*http.Response, MaxRateLimitRetries)}
+	// mockTransport answers 200 once its scripted responses run out. Eleven
+	// rejections stay below the 12-response ceiling.
+	mock := &mockTransport{responses: make([]*http.Response, MaxRateLimitRetries-1)}
 	for i := range mock.responses {
 		mock.responses[i] = &http.Response{StatusCode: http.StatusForbidden, Body: rateLimit403Body("rateLimitExceeded")}
 	}
@@ -724,9 +721,305 @@ func TestRetryTransport_RateLimit403_DefaultBudgetOutlastsPerMinuteQuota(t *test
 		total += d
 	}
 
-	// Gmail's "Units per minute per user" quota refills over a minute, so the
-	// default budget has to keep backing off for at least that long.
-	if total < time.Minute {
-		t.Errorf("total backoff = %v over %d retries, want at least 1m", total, len(*delays))
+	// Gmail's "Units per minute per user" quota refills over a minute, so a
+	// request that keeps getting rejected must keep backing off for at least
+	// that long before the ceiling ends its retries.
+	if total < time.Minute || total > MaxRateLimitWait {
+		t.Errorf("total backoff = %v over %d waits, want between 1m and %v", total, len(*delays), MaxRateLimitWait)
+	}
+}
+
+func TestRetryTransport_RateLimit_SharedGate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		type call struct {
+			path string
+			at   time.Time
+		}
+		calls := make(chan call, 4)
+		firstLimited := false
+		rt := NewRetryTransport(roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			calls <- call{req.URL.Path, time.Now()}
+
+			if req.URL.Path == "/first" && !firstLimited {
+				firstLimited = true
+
+				return &http.Response{
+					StatusCode: http.StatusForbidden,
+					Header:     http.Header{"Retry-After": {"2"}},
+					Body:       rateLimit403Body("userRateLimitExceeded"),
+				}, nil
+			}
+
+			if req.URL.Path == "/extend" || req.URL.Path == "/shorter" {
+				resp := newTestResponse(http.StatusTooManyRequests, "rate limited")
+
+				after := "3"
+				if req.URL.Path == "/shorter" {
+					after = "1"
+				}
+
+				resp.Header.Set("Retry-After", after)
+
+				return resp, nil
+			}
+
+			return newTestResponse(http.StatusOK, "ok"), nil
+		}))
+		rt.nowFn = time.Now
+		rt.sleepFn = func(ctx context.Context, d time.Duration) error {
+			select {
+			case <-time.After(d): // synctest advances this timer on its fake clock.
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		results := make(chan error, 3)
+		startRequest := func(path string) {
+			go func() {
+				req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com"+path, nil)
+
+				resp, err := rt.RoundTrip(req)
+				if resp != nil {
+					_ = resp.Body.Close()
+				}
+
+				results <- err
+			}()
+		}
+
+		start := time.Now()
+
+		startRequest("/first")
+		synctest.Wait()
+
+		if len(calls) != 1 {
+			t.Fatalf("base calls after first response = %d, want 1", len(calls))
+		}
+
+		if got := <-calls; got.path != "/first" || !got.at.Equal(start) {
+			t.Fatalf("initial call = %+v, want /first at %v", got, start)
+		}
+
+		startRequest("/second")
+		startRequest("/third")
+		time.Sleep(time.Second)
+		synctest.Wait()
+
+		if len(calls) != 0 {
+			t.Fatalf("base calls during initial pause = %d, want 0", len(calls))
+		}
+
+		for _, path := range []string{"/extend", "/shorter"} {
+			// Single-attempt calls bypass an active gate but still report rate limits.
+			req, _ := http.NewRequestWithContext(WithoutRetries(t.Context()), http.MethodGet, "https://example.com"+path, nil)
+
+			resp, err := rt.RoundTrip(req)
+			if err != nil || resp.StatusCode != http.StatusTooManyRequests {
+				t.Fatalf("%s: response = %v, error = %v", path, resp, err)
+			}
+			_ = resp.Body.Close()
+
+			if len(calls) != 1 {
+				t.Fatalf("%s: base calls = %d, want the single bypass call", path, len(calls))
+			}
+
+			if got := <-calls; got.path != path || got.at.Sub(start) != time.Second {
+				t.Fatalf("bypass call = %+v, want %s at 1s", got, path)
+			}
+		}
+
+		time.Sleep(3*time.Second - time.Nanosecond)
+		synctest.Wait()
+
+		if len(calls) != 0 {
+			t.Fatalf("base calls during shared pause = %d, want 0", len(calls))
+		}
+
+		for range 3 {
+			if err := <-results; err != nil {
+				t.Fatalf("round trip: %v", err)
+			}
+		}
+
+		if len(calls) != 3 {
+			t.Fatalf("base calls after the shared pause = %d, want 3", len(calls))
+		}
+		seen := make(map[string]bool)
+
+		for range 3 {
+			got := <-calls
+
+			elapsed := got.at.Sub(start)
+			if elapsed < 4*time.Second || elapsed > 4250*time.Millisecond || seen[got.path] {
+				t.Errorf("unexpected base call %+v at %v", got, elapsed)
+			}
+			seen[got.path] = true
+		}
+	})
+}
+
+func TestRetryTransport_RateLimit_SharedStreak(t *testing.T) {
+	statuses := []int{
+		http.StatusTooManyRequests, http.StatusTooManyRequests, http.StatusOK, // Leave the streak at one.
+		http.StatusTooManyRequests, http.StatusOK, // The next request starts at the second backoff.
+		http.StatusOK, http.StatusOK, // Decay to zero and stay there.
+		http.StatusTooManyRequests, http.StatusOK, // The next rate limit uses the base delay.
+	}
+	mock := &mockTransport{responses: make([]*http.Response, len(statuses))}
+
+	for i, status := range statuses {
+		mock.responses[i] = &http.Response{
+			StatusCode: status,
+			Body:       io.NopCloser(strings.NewReader(http.StatusText(status))),
+		}
+	}
+
+	rt := NewRetryTransport(mock)
+	delays := recordBackoff(rt)
+
+	for range 5 {
+		resp := roundTrip(t, rt)
+
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+	}
+
+	want := []time.Duration{time.Second, 2 * time.Second, 2 * time.Second, time.Second}
+	if len(*delays) != 2*len(want) {
+		t.Fatalf("waits = %v, want four backoffs each followed by a release spread", *delays)
+	}
+
+	for i, base := range want {
+		delay, spread := (*delays)[2*i], (*delays)[2*i+1]
+		if delay < base || delay >= base+base/2 || spread < 0 || spread > 250*time.Millisecond {
+			t.Errorf("wait %d = %v + %v, want backoff in [%v, %v) plus up to 250ms spread", i, delay, spread, base, base+base/2)
+		}
+	}
+}
+
+func TestRetryTransport_RateLimit_TimeBudget(t *testing.T) {
+	mock := &mockTransport{responses: make([]*http.Response, 4)}
+	for i := range mock.responses {
+		mock.responses[i] = &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{"Retry-After": {"50"}},
+			Body:       io.NopCloser(strings.NewReader("still rate limited")),
+		}
+	}
+	rt := NewRetryTransport(mock)
+	recordBackoff(rt)
+	start := rt.now()
+
+	resp := roundTrip(t, rt)
+	defer resp.Body.Close()
+
+	if mock.calls != 3 || resp != mock.responses[2] || rt.now().Sub(start) != 120*time.Second {
+		t.Fatalf("calls = %d, status = %d, waited %v; want the third response after 120s", mock.calls, resp.StatusCode, rt.now().Sub(start))
+	}
+
+	if body, err := io.ReadAll(resp.Body); err != nil || string(body) != "still rate limited" {
+		t.Fatalf("body = %q, err = %v; want the original rate-limit body", body, err)
+	}
+}
+
+func TestRetryTransport_RateLimit_TimeBudgetIncludesServerErrorRetry(t *testing.T) {
+	limited := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header:     http.Header{"Retry-After": {"50"}},
+		Body:       io.NopCloser(strings.NewReader("still rate limited")),
+	}
+	mock := &mockTransport{responses: []*http.Response{
+		{StatusCode: limited.StatusCode, Header: limited.Header},
+		limited,
+		{StatusCode: http.StatusServiceUnavailable},
+	}}
+	rt := NewRetryTransport(mock)
+	recordBackoff(rt)
+	start := rt.now()
+	sleep := rt.sleepFn
+	rt.sleepFn = func(ctx context.Context, delay time.Duration) error {
+		if delay == ServerErrorRetryDelay {
+			// Another request is rate-limited during this request's 5xx retry delay.
+			rt.recordRateLimit(&http.Response{Header: http.Header{"Retry-After": {"60"}}}, rt.now())
+		}
+
+		return sleep(ctx, delay)
+	}
+
+	resp := roundTrip(t, rt)
+	defer resp.Body.Close()
+
+	if mock.calls != 3 || resp != limited || rt.now().Sub(start) != 120*time.Second {
+		t.Fatalf("calls = %d, status = %d, waited %v; want the last rate-limit response after 120s", mock.calls, resp.StatusCode, rt.now().Sub(start))
+	}
+
+	if body, err := io.ReadAll(resp.Body); err != nil || string(body) != "still rate limited" {
+		t.Fatalf("body = %q, err = %v; want the original rate-limit body", body, err)
+	}
+}
+
+func TestRetryTransport_RateLimit_InFlightWaveEscalatesOnce(t *testing.T) {
+	rt := NewRetryTransport(&mockTransport{})
+	now := time.Unix(1000, 0)
+	rt.nowFn = func() time.Time { return now }
+
+	// recordRateLimit only reads the status and headers, so no body is needed.
+	reject := func(retryAfter string, sentAt time.Time) time.Duration {
+		header := http.Header{}
+		if retryAfter != "" {
+			header.Set("Retry-After", retryAfter)
+		}
+
+		_, delay := rt.recordRateLimit(&http.Response{StatusCode: http.StatusTooManyRequests, Header: header}, sentAt)
+
+		return delay
+	}
+
+	// Ten concurrent requests leave together; the first rejection escalates.
+	sent := now
+	now = now.Add(100 * time.Millisecond)
+
+	first := reject("", sent)
+	if first < time.Second || first >= 1500*time.Millisecond {
+		t.Fatalf("first delay = %v, want the base backoff", first)
+	}
+
+	pause := rt.pauseUntil
+
+	// The other nine were already in flight and must not escalate or move the pause.
+	for range 9 {
+		now = now.Add(10 * time.Millisecond)
+
+		reject("", sent)
+	}
+
+	if rt.rateLimitStreak != 1 {
+		t.Fatalf("streak = %d after one in-flight wave, want 1", rt.rateLimitStreak)
+	}
+
+	if !rt.pauseUntil.Equal(pause) {
+		t.Fatalf("in-flight rejections moved the pause from %v to %v", pause, rt.pauseUntil)
+	}
+
+	// An in-flight rejection that names a longer wait still extends the pause.
+	reject("30", sent)
+
+	if want := now.Add(30 * time.Second); !rt.pauseUntil.Equal(want) {
+		t.Fatalf("pauseUntil = %v, want Retry-After end %v", rt.pauseUntil, want)
+	}
+
+	if rt.rateLimitStreak != 1 {
+		t.Fatalf("streak = %d after Retry-After from the same wave, want 1", rt.rateLimitStreak)
+	}
+
+	// A request sent after the escalation is new evidence and escalates.
+	now = now.Add(time.Second)
+	reject("", now)
+
+	if rt.rateLimitStreak != 2 {
+		t.Fatalf("streak = %d after a fresh rejection, want 2", rt.rateLimitStreak)
 	}
 }
