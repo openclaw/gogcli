@@ -2,6 +2,7 @@
 
 ## 0.48.2 - Unreleased
 
+- Gmail: read a message body in its declared charset, without a crash, when its `Content-Type` header has unusual bytes (an invalid byte, `İ`, `K`) before `charset=`. (#1356)
 - Reliability: concurrent Google API requests share one rate-limit pause (at most 8s without `Retry-After`) and give up after 12 rate-limit responses or a 2-minute budget instead of six retries, so large Gmail searches no longer fail when one request runs out of retries. (#1357)
 - Auth: automatic reauthorization no longer replays a stored Google Ads (`adwords`) grant unless the failing command needs Ads, so an old Ads grant cannot trigger Google's passkey gate; restore it with `gog auth add <email> --services user,ads`. (#1353)
 - Dependencies: refresh the MCP and Google API clients, networking libraries, and tracking-worker tooling while preserving the Go 1.26 minimum, 24-hour worker cooldown, and security overrides.

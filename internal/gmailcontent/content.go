@@ -257,8 +257,11 @@ func charsetLabelFromContentType(contentType string) string {
 			return label
 		}
 	}
-	lower := strings.ToLower(contentType)
-	idx := strings.Index(lower, "charset=")
+	// Search an ASCII-only lower-case copy: it has the same length as
+	// contentType, so idx is valid in both. strings.ToLower can change the
+	// length (invalid UTF-8 bytes, U+0130, U+212A), which moved the slice
+	// below off the label or out of range.
+	idx := strings.Index(asciiLower(contentType), "charset=")
 
 	if idx == -1 {
 		return ""
@@ -272,6 +275,19 @@ func charsetLabelFromContentType(contentType string) string {
 	}
 
 	return strings.Trim(label, "\"'")
+}
+
+// asciiLower lower-cases A-Z and keeps every other byte, so each index into
+// the result is the same index into s.
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+
+	return string(b)
 }
 
 func decodeWithCharsetLabel(data []byte, charsetLabel string) ([]byte, bool) {
