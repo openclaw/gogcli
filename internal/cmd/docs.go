@@ -46,6 +46,8 @@ type DocsCmd struct {
 	InsertPerson     DocsInsertPersonCmd     `cmd:"" name:"insert-person" help:"Insert a native person smart chip"`
 	InsertFileChip   DocsInsertFileChipCmd   `cmd:"" name:"insert-file-chip" aliases:"insert-rich-link" help:"Insert a native Drive file smart chip"`
 	InsertDateChip   DocsInsertDateChipCmd   `cmd:"" name:"insert-date-chip" help:"Insert a native date smart chip"`
+	InsertDropdown   DocsInsertDropdownCmd   `cmd:"" name:"insert-dropdown" help:"Insert a native dropdown smart chip from an existing dropdown definition"`
+	ListDropdowns    DocsListDropdownsCmd    `cmd:"" name:"list-dropdowns" help:"List dropdown definitions and their options"`
 	InsertPageBreak  DocsInsertPageBreakCmd  `cmd:"" name:"insert-page-break" aliases:"page-break,pb" help:"Insert a page break at a specific position (or end-of-doc with --at-end)"`
 	Footnote         DocsFootnoteCmd         `cmd:"" name:"insert-footnote" help:"Insert and populate a footnote"`
 	SectionBreak     DocsSectionBreakCmd     `cmd:"" name:"insert-section-break" help:"Insert a continuous or next-page section break"`

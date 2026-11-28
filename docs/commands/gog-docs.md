@@ -38,6 +38,7 @@ gog docs (doc) <command> [flags]
 - [gog docs info](gog-docs-info.md) - Get Google Doc metadata
 - [gog docs insert](gog-docs-insert.md) - Insert text at a specific position
 - [gog docs insert-date-chip](gog-docs-insert-date-chip.md) - Insert a native date smart chip
+- [gog docs insert-dropdown](gog-docs-insert-dropdown.md) - Insert a native dropdown smart chip from an existing dropdown definition
 - [gog docs insert-file-chip](gog-docs-insert-file-chip.md) - Insert a native Drive file smart chip
 - [gog docs insert-footnote](gog-docs-insert-footnote.md) - Insert and populate a footnote
 - [gog docs insert-horizontal-rule](gog-docs-insert-horizontal-rule.md) - Insert a paragraph-border horizontal rule
@@ -46,6 +47,7 @@ gog docs (doc) <command> [flags]
 - [gog docs insert-person](gog-docs-insert-person.md) - Insert a native person smart chip
 - [gog docs insert-section-break](gog-docs-insert-section-break.md) - Insert a continuous or next-page section break
 - [gog docs insert-table](gog-docs-insert-table.md) - Insert a native table at a specific position (or end-of-doc with --at-end), optionally populated via --values-json
+- [gog docs list-dropdowns](gog-docs-list-dropdowns.md) - List dropdown definitions and their options
 - [gog docs list-tabs](gog-docs-list-tabs.md) - List all tabs in a Google Doc
 - [gog docs named-range](gog-docs-named-range.md) - Manage named ranges
 - [gog docs page-layout](gog-docs-page-layout.md) - Set page layout (pageless|pages) on an existing Google Doc
