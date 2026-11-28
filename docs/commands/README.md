@@ -2,7 +2,7 @@
 
 Every `gog` command has a generated docs page. The source of truth is the live CLI schema; run `make docs-commands` after changing command names, flags, help text, aliases, or arguments.
 
-Generated pages: 781.
+Generated pages: 783.
 
 ## Top-level Commands
 
@@ -207,6 +207,8 @@ Generated pages: 781.
     - [gog calendar users](gog-calendar-users.md) - List workspace users (use their email as calendar ID)
     - [gog calendar working-location](gog-calendar-working-location.md) - Set working location (home/office/custom)
   - [gog chat](gog-chat.md) - Google Chat
+    - [gog chat attachments](gog-chat-attachments.md) - Message attachments (read-only download)
+      - [gog chat attachments download](gog-chat-attachments-download.md) - Download a message's attachments read-only (spaces.messages.get + media.download)
     - [gog chat dm](gog-chat-dm.md) - Direct messages
       - [gog chat dm send](gog-chat-dm-send.md) - Send a direct message
       - [gog chat dm space](gog-chat-dm-space.md) - Find or create a DM space

@@ -153,6 +153,8 @@ Generated from `gog schema --json`.
     - [`gog calendar (cal) users [flags]`](commands/gog-calendar-users.md) - List workspace users (use their email as calendar ID)
     - [`gog calendar (cal) working-location (wl) --from=STRING --to=STRING --type=STRING [<calendarId>] [flags]`](commands/gog-calendar-working-location.md) - Set working location (home/office/custom)
   - [`gog chat <command> [flags]`](commands/gog-chat.md) - Google Chat
+    - [`gog chat attachments <command>`](commands/gog-chat-attachments.md) - Message attachments (read-only download)
+      - [`gog chat attachments download <name> [flags]`](commands/gog-chat-attachments-download.md) - Download a message's attachments read-only (spaces.messages.get + media.download)
     - [`gog chat dm <command>`](commands/gog-chat-dm.md) - Direct messages
       - [`gog chat dm send (create,post) <email> [flags]`](commands/gog-chat-dm-send.md) - Send a direct message
       - [`gog chat dm space (find,setup) <email>`](commands/gog-chat-dm-space.md) - Find or create a DM space

@@ -28,6 +28,7 @@ gog --readonly --account user@example.com chat --help
 
 | Command | Purpose |
 | --- | --- |
+| `attachments` | Message attachments (read-only download) |
 | `dm` | Direct messages |
 | `messages` | Chat messages |
 | `spaces` | Chat spaces |
