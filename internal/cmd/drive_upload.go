@@ -23,30 +23,32 @@ import (
 )
 
 type DriveUploadCmd struct {
-	LocalPath           string `arg:"" name:"localPath" help:"Path to local file"`
-	Name                string `name:"name" help:"Override filename (create) or rename target (replace)"`
-	Parent              string `name:"parent" help:"Destination folder ID (create only)"`
-	ReplaceFileID       string `name:"replace" help:"Replace the content of an existing Drive file ID (preserves shared link/permissions; unconditional unless --if-version is set)"`
-	IfVersion           *int64 `name:"if-version" help:"Replace only if the current Drive version matches; uses an atomic precondition and reports a conflict if the file changes (requires --replace; re-read and reapply on conflict)"`
-	MimeType            string `name:"mime-type" help:"Override MIME type inference"`
-	KeepRevisionForever bool   `name:"keep-revision-forever" help:"Keep the new head revision forever (binary files only)"`
-	Convert             bool   `name:"convert" help:"Auto-convert to native Google format based on file extension (create only)"`
-	ConvertTo           string `name:"convert-to" help:"Convert to a specific Google format: doc|sheet|slides (create only)"`
-	KeepFrontmatter     bool   `name:"keep-frontmatter" help:"Keep YAML frontmatter (---) in Markdown when converting to a Google Doc (--convert or --convert-to doc; default: strip)"`
+	LocalPath                string `arg:"" name:"localPath" help:"Path to local file"`
+	Name                     string `name:"name" help:"Override filename (create) or rename target (replace)"`
+	Parent                   string `name:"parent" help:"Destination folder ID (create only)"`
+	ReplaceFileID            string `name:"replace" help:"Replace the content of an existing Drive file ID (preserves shared link/permissions; unconditional unless --if-version is set)"`
+	IncludeCommittedRevision bool   `name:"include-committed-revision" help:"Include the committed content revision and available checksums in JSON (requires --if-version)"`
+	IfVersion                *int64 `name:"if-version" help:"Replace only if the current Drive version matches; uses an atomic precondition and reports a conflict if the file changes (requires --replace; re-read and reapply on conflict)"`
+	MimeType                 string `name:"mime-type" help:"Override MIME type inference"`
+	KeepRevisionForever      bool   `name:"keep-revision-forever" help:"Keep the new head revision forever (binary files only)"`
+	Convert                  bool   `name:"convert" help:"Auto-convert to native Google format based on file extension (create only)"`
+	ConvertTo                string `name:"convert-to" help:"Convert to a specific Google format: doc|sheet|slides (create only)"`
+	KeepFrontmatter          bool   `name:"keep-frontmatter" help:"Keep YAML frontmatter (---) in Markdown when converting to a Google Doc (--convert or --convert-to doc; default: strip)"`
 }
 
 type driveUploadOptions struct {
-	localPath           string
-	fileName            string
-	parent              string
-	replaceFileID       string
-	ifVersion           *int64
-	mimeType            string
-	convertMimeType     string
-	isExplicitName      bool
-	keepRevisionForever bool
-	convert             bool
-	size                int64
+	localPath                string
+	fileName                 string
+	parent                   string
+	replaceFileID            string
+	includeCommittedRevision bool
+	ifVersion                *int64
+	mimeType                 string
+	convertMimeType          string
+	isExplicitName           bool
+	keepRevisionForever      bool
+	convert                  bool
+	size                     int64
 }
 
 func guessMimeType(path string) string {
@@ -183,6 +185,9 @@ func (c *DriveUploadCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if opts.ifVersion != nil {
 		dryRunRequest["if_version"] = *opts.ifVersion
 	}
+	if opts.includeCommittedRevision {
+		dryRunRequest["include_committed_revision"] = true
+	}
 	if dryRunErr := dryRunExit(ctx, flags, "drive.upload", dryRunRequest); dryRunErr != nil {
 		return dryRunErr
 	}
@@ -218,12 +223,13 @@ func prepareDriveUpload(c *DriveUploadCmd) (driveUploadOptions, error) {
 	}
 
 	opts := driveUploadOptions{
-		localPath:           expandedPath,
-		fileName:            strings.TrimSpace(c.Name),
-		parent:              strings.TrimSpace(c.Parent),
-		replaceFileID:       strings.TrimSpace(c.ReplaceFileID),
-		mimeType:            strings.TrimSpace(c.MimeType),
-		keepRevisionForever: c.KeepRevisionForever,
+		localPath:                expandedPath,
+		fileName:                 strings.TrimSpace(c.Name),
+		parent:                   strings.TrimSpace(c.Parent),
+		replaceFileID:            strings.TrimSpace(c.ReplaceFileID),
+		mimeType:                 strings.TrimSpace(c.MimeType),
+		keepRevisionForever:      c.KeepRevisionForever,
+		includeCommittedRevision: c.IncludeCommittedRevision,
 	}
 	if c.IfVersion != nil {
 		expectedVersion := *c.IfVersion
@@ -231,6 +237,9 @@ func prepareDriveUpload(c *DriveUploadCmd) (driveUploadOptions, error) {
 	}
 	opts.isExplicitName = opts.fileName != ""
 
+	if opts.includeCommittedRevision && opts.ifVersion == nil {
+		return driveUploadOptions{}, usage("--include-committed-revision requires --if-version")
+	}
 	if opts.ifVersion != nil && opts.replaceFileID == "" {
 		return driveUploadOptions{}, usage("--if-version requires --replace")
 	}
@@ -389,10 +398,14 @@ func runDriveConditionalReplaceUpload(ctx context.Context, svc *drivev2.Service,
 	// retrying resumable uploader, while the request context disables retries in
 	// gog's authenticated RetryTransport.
 	updateCtx := gogapi.WithoutRetries(ctx)
+	fields := "id, title, mimeType, fileSize, alternateLink"
+	if opts.includeCommittedRevision {
+		fields += ", headRevisionId, sha256Checksum, md5Checksum"
+	}
 	call := svc.Files.Update(opts.replaceFileID, meta).
 		SupportsAllDrives(true).
 		Media(file, gapi.ContentType(opts.mimeType), gapi.ChunkSize(0)).
-		Fields("id, title, mimeType, fileSize, alternateLink").
+		Fields(gapi.Field(fields)).
 		Context(updateCtx)
 	if opts.keepRevisionForever {
 		call = call.Pinned(true)
@@ -410,13 +423,19 @@ func runDriveConditionalReplaceUpload(ctx context.Context, svc *drivev2.Service,
 		}
 		return err
 	}
-	return writeDriveUploadResult(ctx, &drive.File{
+	result := &drive.File{
 		Id:          updated.Id,
 		Name:        updated.Title,
 		MimeType:    updated.MimeType,
 		Size:        updated.FileSize,
 		WebViewLink: updated.AlternateLink,
-	}, true, opts.replaceFileID)
+	}
+	if opts.includeCommittedRevision {
+		result.HeadRevisionId = updated.HeadRevisionId
+		result.Md5Checksum = updated.Md5Checksum
+		result.Sha256Checksum = updated.Sha256Checksum
+	}
+	return writeDriveUploadResult(ctx, result, true, opts.replaceFileID)
 }
 
 func writeDriveUploadResult(ctx context.Context, file *drive.File, replaced bool, replacedFileID string) error {
