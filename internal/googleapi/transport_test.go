@@ -941,7 +941,7 @@ func TestRetryTransport_RateLimit_TimeBudgetIncludesServerErrorRetry(t *testing.
 	rt.sleepFn = func(ctx context.Context, delay time.Duration) error {
 		if delay == ServerErrorRetryDelay {
 			// Another request is rate-limited during this request's 5xx retry delay.
-			rt.recordRateLimit(&http.Response{Header: http.Header{"Retry-After": {"60"}}})
+			rt.recordRateLimit(&http.Response{Header: http.Header{"Retry-After": {"60"}}}, rt.now())
 		}
 
 		return sleep(ctx, delay)
@@ -956,5 +956,68 @@ func TestRetryTransport_RateLimit_TimeBudgetIncludesServerErrorRetry(t *testing.
 
 	if body, err := io.ReadAll(resp.Body); err != nil || string(body) != "still rate limited" {
 		t.Fatalf("body = %q, err = %v; want the original rate-limit body", body, err)
+	}
+}
+
+func TestRetryTransport_RateLimit_InFlightWaveEscalatesOnce(t *testing.T) {
+	rt := NewRetryTransport(&mockTransport{})
+	now := time.Unix(1000, 0)
+	rt.nowFn = func() time.Time { return now }
+
+	// recordRateLimit only reads the status and headers, so no body is needed.
+	reject := func(retryAfter string, sentAt time.Time) time.Duration {
+		header := http.Header{}
+		if retryAfter != "" {
+			header.Set("Retry-After", retryAfter)
+		}
+
+		_, delay := rt.recordRateLimit(&http.Response{StatusCode: http.StatusTooManyRequests, Header: header}, sentAt)
+
+		return delay
+	}
+
+	// Ten concurrent requests leave together; the first rejection escalates.
+	sent := now
+	now = now.Add(100 * time.Millisecond)
+
+	first := reject("", sent)
+	if first < time.Second || first >= 1500*time.Millisecond {
+		t.Fatalf("first delay = %v, want the base backoff", first)
+	}
+
+	pause := rt.pauseUntil
+
+	// The other nine were already in flight and must not escalate or move the pause.
+	for range 9 {
+		now = now.Add(10 * time.Millisecond)
+
+		reject("", sent)
+	}
+
+	if rt.rateLimitStreak != 1 {
+		t.Fatalf("streak = %d after one in-flight wave, want 1", rt.rateLimitStreak)
+	}
+
+	if !rt.pauseUntil.Equal(pause) {
+		t.Fatalf("in-flight rejections moved the pause from %v to %v", pause, rt.pauseUntil)
+	}
+
+	// An in-flight rejection that names a longer wait still extends the pause.
+	reject("30", sent)
+
+	if want := now.Add(30 * time.Second); !rt.pauseUntil.Equal(want) {
+		t.Fatalf("pauseUntil = %v, want Retry-After end %v", rt.pauseUntil, want)
+	}
+
+	if rt.rateLimitStreak != 1 {
+		t.Fatalf("streak = %d after Retry-After from the same wave, want 1", rt.rateLimitStreak)
+	}
+
+	// A request sent after the escalation is new evidence and escalates.
+	now = now.Add(time.Second)
+	reject("", now)
+
+	if rt.rateLimitStreak != 2 {
+		t.Fatalf("streak = %d after a fresh rejection, want 2", rt.rateLimitStreak)
 	}
 }

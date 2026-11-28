@@ -61,9 +61,10 @@ type RetryTransport struct {
 	// If Reauth is nil, invalid_grant errors are surfaced without retry.
 	Reauth func(context.Context) error
 
-	rateLimitMu     sync.Mutex
-	pauseUntil      time.Time
-	rateLimitStreak int
+	rateLimitMu          sync.Mutex
+	pauseUntil           time.Time
+	rateLimitStreak      int
+	rateLimitEscalatedAt time.Time
 
 	// sleepFn and nowFn replace wall-clock timing in tests.
 	sleepFn func(context.Context, time.Duration) error
@@ -147,6 +148,8 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 		}
 
+		sentAt := t.now()
+
 		resp, err = t.Base.RoundTrip(req)
 		if err != nil {
 			// Detect invalid_grant from the OAuth2 transport layer.
@@ -192,7 +195,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Rate limit (429, or 403 with a rate-limit reason)
 		if resp.StatusCode == http.StatusTooManyRequests || responseIndicatesRateLimit(resp) {
-			now, delay := t.recordRateLimit(resp)
+			now, delay := t.recordRateLimit(resp, sentAt)
 
 			rateLimitResponses++
 			if rateLimitResponses == 1 {
@@ -289,12 +292,28 @@ func (t *RetryTransport) now() time.Time {
 	return time.Now()
 }
 
-func (t *RetryTransport) recordRateLimit(resp *http.Response) (time.Time, time.Duration) {
+func (t *RetryTransport) recordRateLimit(resp *http.Response, sentAt time.Time) (time.Time, time.Duration) {
 	t.rateLimitMu.Lock()
 	defer t.rateLimitMu.Unlock()
 
 	now := t.now()
+
+	// Requests already in flight when the pause was set come back rejected too.
+	// Count that wave once, so a burst of concurrent rejections does not jump
+	// straight to the maximum backoff. Such responses only extend the pause
+	// when Google asks for a specific wait.
+	if sentAt.Before(t.rateLimitEscalatedAt) {
+		if resp.Header.Get("Retry-After") != "" {
+			if until := now.Add(t.calculateBackoff(0, resp, now)); until.After(t.pauseUntil) {
+				t.pauseUntil = until
+			}
+		}
+
+		return now, max(0, t.pauseUntil.Sub(now))
+	}
+
 	t.rateLimitStreak++
+	t.rateLimitEscalatedAt = now
 
 	delay := t.calculateBackoff(t.rateLimitStreak-1, resp, now)
 	if until := now.Add(delay); until.After(t.pauseUntil) {
